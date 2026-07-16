@@ -137,6 +137,7 @@
   .box-card-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
   .box-card-header h3{ margin:0; font-size:15px; }
   .box-card-header .count{ font-size:12px; color:var(--muted); font-weight:normal; margin-left:6px; }
+  .dims-row{ display:grid; grid-template-columns:repeat(4, 1fr); gap:8px; margin-bottom:12px; }
 
   .search-wrap{ position:relative; margin-bottom:10px; }
   .search-results{
@@ -335,6 +336,16 @@
   ];
   var catalogSource = "local"; // "repo" | "local"
   var repoLogoPath = null;
+
+  // Sends a summary email (box count, dimensions, weights) via a Google
+  // Apps Script Web App tied to a Gmail account. Replace NOTIFY_URL with
+  // the "Web app URL" you get after deploying the provided Code.gs script,
+  // and NOTIFY_TOKEN with the same value you set in that script's Script
+  // Properties. See README.md for full setup steps. Recipients are NOT
+  // configured here - they live in the Apps Script's Script Properties so
+  // they aren't exposed in this public page's source code.
+  var NOTIFY_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+  var NOTIFY_TOKEN = "PASTE_YOUR_SHARED_TOKEN_HERE";
 
   function saveCatalog(){ localStorage.setItem(LS_CATALOG, JSON.stringify(catalog)); }
   function saveHistory(){ localStorage.setItem(LS_HISTORY, JSON.stringify(history)); }
@@ -645,7 +656,7 @@
   /* ---------- Boxes ---------- */
   function addBox(){
     boxCounter++;
-    boxes.push({ id: boxCounter, items: [] });
+    boxes.push({ id: boxCounter, items: [], dims: { length: "", width: "", height: "", weight: "" } });
     renderBoxes();
   }
 
@@ -673,6 +684,7 @@
       return;
     }
     area.innerHTML = boxes.map(function(box, i){
+      if(!box.dims) box.dims = { length: "", width: "", height: "", weight: "" };
       var itemCount = box.items.reduce(function(s,it){ return s + it.qty; }, 0);
       var sel = boxSelections[box.id];
       var itemsHtml;
@@ -697,6 +709,12 @@
         '<div class="box-card" data-box-id="'+box.id+'">' +
           '<div class="box-card-header"><h3>Box '+(i+1)+' <span class="count">('+itemCount+' item'+(itemCount===1?'':'s')+')</span></h3>' +
             '<button class="small danger" data-box="'+box.id+'" data-action="removeBox">Remove box</button></div>' +
+          '<div class="dims-row">' +
+            '<div><label class="field-label">Length (in)</label><input type="number" min="0" step="0.1" class="dims-input" data-box="'+box.id+'" data-field="length" value="'+escapeHtml(box.dims.length)+'"></div>' +
+            '<div><label class="field-label">Width (in)</label><input type="number" min="0" step="0.1" class="dims-input" data-box="'+box.id+'" data-field="width" value="'+escapeHtml(box.dims.width)+'"></div>' +
+            '<div><label class="field-label">Height (in)</label><input type="number" min="0" step="0.1" class="dims-input" data-box="'+box.id+'" data-field="height" value="'+escapeHtml(box.dims.height)+'"></div>' +
+            '<div><label class="field-label">Weight (lb)</label><input type="number" min="0" step="0.1" class="dims-input" data-box="'+box.id+'" data-field="weight" value="'+escapeHtml(box.dims.weight)+'"></div>' +
+          '</div>' +
           '<div class="search-wrap">' +
             '<input type="text" placeholder="Search by product name, SKU, or barcode (type 3+ characters)..." data-box="'+box.id+'" class="product-search" autocomplete="off">' +
             '<div class="search-results" data-box="'+box.id+'" style="display:none;"></div>' +
@@ -748,6 +766,16 @@
   });
 
   document.getElementById("boxesArea").addEventListener("input", function(e){
+    if(e.target.classList.contains("dims-input")){
+      var dimsBoxId = parseInt(e.target.getAttribute("data-box"), 10);
+      var field = e.target.getAttribute("data-field");
+      var dimsBox = boxes.find(function(b){ return b.id === dimsBoxId; });
+      if(dimsBox){
+        if(!dimsBox.dims) dimsBox.dims = { length: "", width: "", height: "", weight: "" };
+        dimsBox.dims[field] = e.target.value;
+      }
+      return; // don't re-render - would drop focus mid-typing
+    }
     if(e.target.classList.contains("product-search")){
       var boxId = e.target.getAttribute("data-box");
       var resultsEl = document.querySelector('.search-results[data-box="'+boxId+'"]');
@@ -906,6 +934,42 @@
     setTimeout(function(){ window.print(); }, 150);
   }
 
+  // Fire-and-forget notification email via the Apps Script Web App. Uses
+  // mode:"no-cors" because Apps Script web apps don't return CORS headers
+  // browsers accept for a readable cross-origin response - this means we
+  // can't tell whether the send actually succeeded, only that the request
+  // went out. That's an acceptable trade-off for a "just let people know"
+  // notification; verify once during setup by checking the inbox.
+  function sendPackageNotification(boxesArr){
+    if(!NOTIFY_URL || NOTIFY_URL.indexOf("PASTE_YOUR") === 0) return; // not configured yet
+    var payload = {
+      token: NOTIFY_TOKEN,
+      completedAt: new Date().toISOString(),
+      boxCount: boxesArr.length,
+      boxes: boxesArr.map(function(b, idx){
+        var d = b.dims || {};
+        return {
+          box: idx + 1,
+          items: boxTotalQty(b),
+          length: d.length || "",
+          width: d.width || "",
+          height: d.height || "",
+          weight: d.weight || ""
+        };
+      })
+    };
+    try{
+      fetch(NOTIFY_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload)
+      });
+    }catch(err){
+      console.error("Notification email request failed to send:", err);
+    }
+  }
+
   document.getElementById("printBtn").addEventListener("click", function(){
     if(boxes.length === 0){ toast("Add at least one box before printing"); return; }
     var hasItems = boxes.some(function(b){ return b.items.length > 0; });
@@ -919,6 +983,8 @@
       boxes: JSON.parse(JSON.stringify(boxes))
     });
     saveHistory();
+
+    sendPackageNotification(boxes);
 
     var jobs = buildPrintArea();
     doPrintWhenReady(jobs, 10);
