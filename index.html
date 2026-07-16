@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Box Label Generator</title>
+<script>
+  // Load JsBarcode with fallback CDNs in case one is unreachable.
+  (function loadBarcodeLib(sources){
+    var i = 0;
+    function tryNext(){
+      if(i >= sources.length){ console.error("JsBarcode failed to load from all sources"); return; }
+      var s = document.createElement("script");
+      s.src = sources[i++];
+      s.onerror = tryNext;
+      document.head.appendChild(s);
+    }
+    tryNext();
+  })([
+    "https://cdnjs.cloudflare.com/ajax/libs/JsBarcode/3.11.5/JsBarcode.all.min.js",
+    "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js",
+    "https://unpkg.com/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"
+  ]);
+</script>
+<style>
+  :root{
+    --accent:#2454b8;
+    --bg:#f4f6f9;
+    --card:#ffffff;
+    --border:#d7dce3;
+    --text:#1f2937;
+    --muted:#6b7280;
+    --danger:#c0392b;
+    --danger-bg:#fdecea;
+    --good:#1e824c;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+  }
+  header{
+    background:var(--card);
+    border-bottom:1px solid var(--border);
+    padding:14px 24px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  header h1{ font-size:18px; margin:0; }
+  header .sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+  .header-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .logo-box{ display:flex; align-items:center; gap:8px; }
+  .logo-preview{ height:36px; max-width:100px; object-fit:contain; border:1px dashed var(--border); border-radius:4px; padding:2px; background:#fff; }
+  .logo-preview.empty{ display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); width:70px; }
+
+  main{ max-width:1000px; margin:20px auto; padding:0 20px 60px; }
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:16px 18px;
+    margin-bottom:18px;
+  }
+  .panel h2{ font-size:15px; margin:0 0 10px; }
+  .panel-header{ display:flex; align-items:center; justify-content:space-between; cursor:pointer; user-select:none; }
+  .panel-header h2{ margin:0; }
+  .chevron{ transition:transform .15s; color:var(--muted); font-size:12px; }
+  .panel-header.collapsed .chevron{ transform:rotate(-90deg); }
+  .panel-body{ margin-top:12px; }
+  .panel-body.hidden{ display:none; }
+
+  button{
+    font-family:inherit;
+    font-size:13px;
+    border-radius:6px;
+    border:1px solid var(--border);
+    background:#fff;
+    padding:8px 14px;
+    cursor:pointer;
+    color:var(--text);
+  }
+  button:hover{ background:#f0f2f5; }
+  button.primary{ background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
+  button.primary:hover{ background:#1c3f92; }
+  button.danger{ background:var(--danger-bg); color:var(--danger); border-color:#f2c9c5; }
+  button.danger:hover{ background:#f9d7d3; }
+  button.small{ padding:4px 9px; font-size:12px; }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
+
+  input[type=text], input[type=number]{
+    font-family:inherit;
+    font-size:13px;
+    padding:8px 10px;
+    border:1px solid var(--border);
+    border-radius:6px;
+    width:100%;
+  }
+  label.field-label{ font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); display:block; margin-bottom:4px; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th,td{ text-align:left; padding:7px 8px; border-bottom:1px solid var(--border); }
+  th{ font-size:11px; text-transform:uppercase; color:var(--muted); font-weight:600; }
+  tr:last-child td{ border-bottom:none; }
+
+  .catalog-add-row{ display:grid; grid-template-columns:1fr 1fr 1.4fr auto; gap:8px; margin-top:14px; align-items:end; }
+  .csv-row{ display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
+  .csv-hint{ font-size:12px; color:var(--muted); }
+  .empty-hint{ font-size:13px; color:var(--muted); padding:10px 0; }
+
+  #boxesArea{ display:flex; flex-direction:column; gap:16px; margin-bottom:16px; }
+  .box-card{ background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px 18px; position:relative; }
+  .box-card-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .box-card-header h3{ margin:0; font-size:15px; }
+  .box-card-header .count{ font-size:12px; color:var(--muted); font-weight:normal; margin-left:6px; }
+
+  .search-wrap{ position:relative; margin-bottom:10px; }
+  .search-results{
+    position:absolute; z-index:20; top:100%; left:0; right:0;
+    background:#fff; border:1px solid var(--border); border-top:none;
+    border-radius:0 0 8px 8px; max-height:220px; overflow-y:auto;
+    box-shadow:0 6px 14px rgba(0,0,0,.08);
+  }
+  .search-result-item{ padding:8px 10px; cursor:pointer; font-size:13px; border-bottom:1px solid #f0f2f5; }
+  .search-result-item:hover{ background:#eef2fb; }
+  .search-result-item .sr-sku{ font-weight:600; }
+  .search-result-item .sr-name{ color:var(--muted); }
+  .search-no-results{ padding:8px 10px; font-size:12px; color:var(--muted); }
+
+  .selected-product-row{
+    display:flex; align-items:end; gap:10px; background:#f7f9fc; border:1px solid var(--border);
+    border-radius:8px; padding:10px 12px; margin-bottom:12px; flex-wrap:wrap;
+  }
+  .selected-product-row .sp-info{ flex:1; min-width:160px; }
+  .selected-product-row .sp-info .sp-name{ font-weight:600; font-size:13px; }
+  .selected-product-row .sp-info .sp-sku{ font-size:12px; color:var(--muted); }
+  .qty-input{ width:90px; }
+
+  .item-table-wrap{ margin-top:4px; }
+  .no-items{ font-size:12px; color:var(--muted); padding:6px 0; }
+
+  .actions-bar{ display:flex; gap:10px; align-items:center; margin-top:6px; flex-wrap:wrap; }
+  .actions-bar .spacer{ flex:1; }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:#1f2937; color:#fff; padding:10px 18px; border-radius:8px; font-size:13px;
+    opacity:0; pointer-events:none; transition:opacity .2s; z-index:100;
+  }
+  .toast.show{ opacity:1; }
+
+  /* Print label styling */
+  #printArea{ display:none; }
+  .label{
+    width:4in; height:6in; padding:0.22in; box-sizing:border-box;
+    display:flex; flex-direction:column; font-family:Arial,sans-serif; page-break-after:always;
+  }
+  .label:last-child{ page-break-after:auto; }
+  .label-header{
+    display:flex; align-items:center; justify-content:space-between; border-bottom:2px solid #000;
+    padding-bottom:0.07in; margin-bottom:0.12in;
+  }
+  .label-header .logo-slot img{ max-height:0.5in; max-width:1.6in; object-fit:contain; }
+  .label-header .box-title{ text-align:right; }
+  .label-header .box-title .bn{ font-size:16pt; font-weight:800; line-height:1.1; }
+  .label-header .box-title .dt{ font-size:8pt; color:#444; }
+  .label-items{ flex:1; display:flex; flex-direction:column; gap:0.06in; overflow:hidden; }
+  .item-row{ display:flex; align-items:center; gap:0.12in; border-bottom:1px dashed #bbb; padding-bottom:0.05in; }
+  .item-row .barcode-slot svg{ display:block; }
+  .item-row .item-info{ font-size:9pt; line-height:1.35; flex:1; }
+  .item-row .item-info .iname{ font-weight:700; font-size:10.5pt; }
+  .item-row .item-info .isku{ color:#333; }
+  .item-row .item-info .iqty{ font-weight:700; }
+  .label-footer{ font-size:7pt; color:#555; text-align:center; margin-top:0.08in; border-top:1px solid #ccc; padding-top:0.05in; }
+
+  @media print{
+    body *{ visibility:hidden; }
+    #printArea, #printArea *{ visibility:visible; }
+    #printArea{ display:block; position:absolute; top:0; left:0; }
+    @page{ size:4in 6in; margin:0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="no-print">
+  <div>
+    <h1>Box Label Generator</h1>
+    <div class="sub">Build boxes, add products, print 4"×6" thermal labels</div>
+  </div>
+  <div class="header-actions">
+    <div class="logo-box">
+      <span id="logoPreviewWrap"></span>
+      <button id="logoUploadBtn" class="small">Set logo</button>
+      <input type="file" id="logoFileInput" accept="image/*" style="display:none">
+      <button id="logoRemoveBtn" class="small" style="display:none">Remove</button>
+    </div>
+    <button id="toggleCatalogBtn">Manage Products</button>
+  </div>
+</header>
+<div class="csv-hint no-print" id="sourceStatus" style="padding:6px 24px; background:#eef2fb;"></div>
+
+<main class="no-print">
+
+  <div class="panel" id="catalogPanel" style="display:none;">
+    <div class="panel-header" id="catalogPanelHeader">
+      <h2>Product Catalog</h2>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="panel-body" id="catalogPanelBody">
+      <div class="csv-row">
+        <button id="csvImportBtn">Import CSV</button>
+        <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none">
+        <span class="csv-hint">Auto-detects columns named SKU, Name, Barcode, EANBarcode/EAN, and UPCBarcode/UPC (case-insensitive) &mdash; works with plain exports and with inventory-system exports that have many other columns, which are simply ignored. If both EAN and UPC are present, both are searchable. This import is local to your browser only — to share the same catalog with the whole team, add/update a <code>catalog.csv</code> file next to <code>index.html</code> in the hosted repo instead.</span>
+      </div>
+
+      <div id="catalogTableWrap"></div>
+
+      <div class="catalog-add-row">
+        <div>
+          <label class="field-label">SKU</label>
+          <input type="text" id="newSku" placeholder="SKU-1001">
+        </div>
+        <div>
+          <label class="field-label">Barcode (optional)</label>
+          <input type="text" id="newBarcode" placeholder="defaults to SKU">
+        </div>
+        <div>
+          <label class="field-label">Product name</label>
+          <input type="text" id="newName" placeholder="Widget, Blue, Large">
+        </div>
+        <button id="addProductBtn" class="primary">Add product</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header" id="workspaceHeader" style="cursor:default;">
+      <h2>Package</h2>
+    </div>
+    <div id="boxesArea"></div>
+    <div class="actions-bar">
+      <button id="addBoxBtn" class="primary">+ Add Box</button>
+      <span class="spacer"></span>
+      <button id="clearAllBtn" class="danger">Clear all boxes</button>
+      <button id="printBtn" class="primary">Complete &amp; Print Labels</button>
+    </div>
+  </div>
+
+</main>
+
+<div id="printArea"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- State ---------- */
+  var LS_CATALOG = "boxlabel_catalog_v1";
+  var LS_LOGO = "boxlabel_logo_v1";
+  var catalog = JSON.parse(localStorage.getItem(LS_CATALOG) || "[]");
+  var logoDataUrl = localStorage.getItem(LS_LOGO) || "";
+  var boxes = []; // {id, items:[{sku,barcode,name,qty}]}
+  var boxCounter = 0;
+  var MAX_ITEMS_PER_LABEL_PAGE = 9;
+  var MIN_SEARCH_CHARS = 3; // results start appearing once this many characters are typed
+
+  // When this tool is hosted (e.g. GitHub Pages) with a catalog.csv and/or
+  // logo.png sitting next to index.html, those repo files are treated as the
+  // shared source of truth so every teammate sees the same catalog/logo
+  // without any manual import. Local file:// usage (or missing repo files)
+  // falls back to whatever was saved locally via the manual controls below.
+  var CATALOG_URL = "catalog.csv";
+  var LOGO_CANDIDATES = ["logo.png", "logo.jpg", "logo.jpeg", "logo.svg"];
+  var catalogSource = "local"; // "repo" | "local"
+  var repoLogoPath = null;
+
+  function saveCatalog(){ localStorage.setItem(LS_CATALOG, JSON.stringify(catalog)); }
+  function saveLogo(){ localStorage.setItem(LS_LOGO, logoDataUrl); }
+
+  function getEffectiveLogoSrc(){
+    return repoLogoPath || logoDataUrl || "";
+  }
+
+  function renderSourceStatus(){
+    var el = document.getElementById("sourceStatus");
+    var parts = [];
+    if(catalogSource === "repo"){
+      parts.push(catalog.length + " product(s) loaded from catalog.csv (shared)");
+    } else if(catalog.length){
+      parts.push(catalog.length + " product(s) saved locally in this browser only — add a catalog.csv next to index.html to share one list with the team");
+    } else {
+      parts.push("No product catalog loaded — add a catalog.csv next to index.html, or add products manually below");
+    }
+    parts.push(repoLogoPath ? "logo from " + repoLogoPath : (logoDataUrl ? "logo saved locally" : "no logo set"));
+    el.textContent = parts.join(" • ");
+  }
+
+  function loadRepoCatalog(){
+    return fetch(CATALOG_URL, { cache: "no-store" }).then(function(res){
+      if(!res.ok) throw new Error("no catalog.csv");
+      return res.text();
+    }).then(function(text){
+      var rows = parseCsvRows(text);
+      if(rows.length){
+        catalog = rows;
+        saveCatalog();
+        catalogSource = "repo";
+      }
+    }).catch(function(){
+      catalogSource = "local";
+    });
+  }
+
+  function loadRepoLogo(){
+    var i = 0;
+    function tryNext(){
+      if(i >= LOGO_CANDIDATES.length){ repoLogoPath = null; return Promise.resolve(); }
+      var candidate = LOGO_CANDIDATES[i++];
+      return fetch(candidate, { cache: "no-store" }).then(function(res){
+        if(res.ok){ repoLogoPath = candidate; return; }
+        return tryNext();
+      }).catch(function(){ return tryNext(); });
+    }
+    return tryNext();
+  }
+
+  function toast(msg){
+    var t = document.getElementById("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._h);
+    toast._h = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  /* ---------- Logo ---------- */
+  function renderLogoPreview(){
+    var wrap = document.getElementById("logoPreviewWrap");
+    var uploadBtn = document.getElementById("logoUploadBtn");
+    var removeBtn = document.getElementById("logoRemoveBtn");
+    var effective = getEffectiveLogoSrc();
+    if(effective){
+      wrap.innerHTML = '<img class="logo-preview" src="'+effective+'" alt="logo">';
+    } else {
+      wrap.innerHTML = '<span class="logo-preview empty">no logo</span>';
+    }
+    if(repoLogoPath){
+      // Repo-provided logo takes precedence; manual controls are disabled to avoid confusion.
+      uploadBtn.disabled = true;
+      uploadBtn.title = "Logo is managed via " + repoLogoPath + " in the repo";
+      removeBtn.style.display = "none";
+    } else {
+      uploadBtn.disabled = false;
+      uploadBtn.title = "";
+      removeBtn.style.display = logoDataUrl ? "inline-block" : "none";
+    }
+  }
+  document.getElementById("logoUploadBtn").addEventListener("click", function(){
+    document.getElementById("logoFileInput").click();
+  });
+  document.getElementById("logoFileInput").addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      logoDataUrl = ev.target.result;
+      saveLogo();
+      renderLogoPreview();
+      toast("Logo saved");
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById("logoRemoveBtn").addEventListener("click", function(){
+    logoDataUrl = "";
+    saveLogo();
+    renderLogoPreview();
+  });
+
+  /* ---------- Catalog panel toggle ---------- */
+  document.getElementById("toggleCatalogBtn").addEventListener("click", function(){
+    var p = document.getElementById("catalogPanel");
+    p.style.display = (p.style.display === "none") ? "block" : "none";
+  });
+  document.getElementById("catalogPanelHeader").addEventListener("click", function(){
+    var body = document.getElementById("catalogPanelBody");
+    var header = document.getElementById("catalogPanelHeader");
+    body.classList.toggle("hidden");
+    header.classList.toggle("collapsed");
+  });
+
+  /* ---------- Catalog CRUD ---------- */
+  function renderCatalogTable(){
+    var wrap = document.getElementById("catalogTableWrap");
+    if(catalog.length === 0){
+      wrap.innerHTML = '<div class="empty-hint">No products yet. Import a CSV or add one below.</div>';
+      return;
+    }
+    var rows = catalog.map(function(p, idx){
+      return '<tr><td>'+escapeHtml(p.sku)+'</td><td>'+escapeHtml(p.name)+'</td><td>'+escapeHtml(p.barcodes.join(", "))+
+        '</td><td><button class="small danger" data-idx="'+idx+'" data-action="delProduct">Remove</button></td></tr>';
+    }).join("");
+    wrap.innerHTML = '<table><thead><tr><th>SKU</th><th>Name</th><th>Barcode(s)</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+
+  function escapeHtml(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  document.getElementById("addProductBtn").addEventListener("click", function(){
+    var sku = document.getElementById("newSku").value.trim();
+    var barcode = document.getElementById("newBarcode").value.trim();
+    var name = document.getElementById("newName").value.trim();
+    if(!sku || !name){ toast("SKU and product name are required"); return; }
+    var bc = barcode || sku;
+    catalog.push({ sku: sku, name: name, ean: "", upc: "", barcodes: [bc], barcode: bc });
+    saveCatalog();
+    catalogSource = "local";
+    renderCatalogTable();
+    renderSourceStatus();
+    document.getElementById("newSku").value = "";
+    document.getElementById("newBarcode").value = "";
+    document.getElementById("newName").value = "";
+    toast("Product added");
+  });
+
+  document.getElementById("catalogTableWrap").addEventListener("click", function(e){
+    var btn = e.target.closest('[data-action="delProduct"]');
+    if(!btn) return;
+    var idx = parseInt(btn.getAttribute("data-idx"), 10);
+    catalog.splice(idx, 1);
+    saveCatalog();
+    renderCatalogTable();
+    renderSourceStatus();
+  });
+
+  /* ---------- CSV import ---------- */
+  document.getElementById("csvImportBtn").addEventListener("click", function(){
+    document.getElementById("csvFileInput").click();
+  });
+  document.getElementById("csvFileInput").addEventListener("change", function(e){
+    var file = e.target.files[0];
+    if(!file) return;
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      try{
+        var rows = parseCsvRows(ev.target.result);
+        catalog = catalog.concat(rows);
+        saveCatalog();
+        catalogSource = "local";
+        renderCatalogTable();
+        renderSourceStatus();
+        toast(rows.length + " product(s) imported");
+      }catch(err){
+        toast("Could not parse CSV: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  });
+
+  function splitCsvLine(line){
+    var out = [], cur = "", inQuotes = false;
+    for(var i=0;i<line.length;i++){
+      var c = line[i];
+      if(inQuotes){
+        if(c === '"' && line[i+1] === '"'){ cur += '"'; i++; }
+        else if(c === '"'){ inQuotes = false; }
+        else cur += c;
+      } else {
+        if(c === '"'){ inQuotes = true; }
+        else if(c === ','){ out.push(cur); cur = ""; }
+        else cur += c;
+      }
+    }
+    out.push(cur);
+    return out.map(function(s){ return s.trim(); });
+  }
+
+  // Recognizes plain "SKU,Barcode,Name" files as well as richer inventory-
+  // system exports (e.g. Brightpearl/Linnworks-style) that include separate
+  // EANBarcode / UPCBarcode columns plus many other columns we don't need.
+  // Extra columns (price, weight, category, etc.) are simply ignored.
+  function normalizeHeader(h){
+    return h.replace(/^﻿/, "").trim().toLowerCase();
+  }
+
+  function parseCsvRows(text){
+    var lines = text.split(/\r?\n/).filter(function(l){ return l.trim().length > 0; });
+    if(lines.length === 0) return [];
+
+    var headerCells = splitCsvLine(lines[0]).map(normalizeHeader);
+    var cols = { sku:-1, name:-1, ean:-1, upc:-1, barcode:-1, description:-1 };
+    headerCells.forEach(function(h, idx){
+      if(cols.sku === -1 && h === "sku") cols.sku = idx;
+      else if(cols.name === -1 && h === "name") cols.name = idx;
+      else if(cols.ean === -1 && (h === "eanbarcode" || h === "ean")) cols.ean = idx;
+      else if(cols.upc === -1 && (h === "upcbarcode" || h === "upc")) cols.upc = idx;
+      else if(cols.barcode === -1 && h === "barcode") cols.barcode = idx;
+      else if(cols.description === -1 && h === "description") cols.description = idx;
+    });
+
+    var hasHeader = cols.sku !== -1 || cols.name !== -1;
+    var startIdx = 0;
+    if(hasHeader){
+      startIdx = 1;
+    } else {
+      // No recognizable header - fall back to plain SKU,Barcode,Name column order.
+      cols = { sku:0, barcode:1, name:2, ean:-1, upc:-1 };
+    }
+
+    function cell(fields, idx){
+      return (idx >= 0 && fields[idx] != null) ? fields[idx].trim() : "";
+    }
+
+    var rows = [];
+    for(var i=startIdx;i<lines.length;i++){
+      var f = splitCsvLine(lines[i]);
+      var sku = cell(f, cols.sku);
+      var name = cell(f, cols.name);
+      var ean = cell(f, cols.ean);
+      var upc = cell(f, cols.upc);
+      var singleBarcode = cell(f, cols.barcode);
+      var description = cell(f, cols.description);
+
+      if(!sku && !name) continue;
+      // Skip obvious placeholder/junk rows some exports include (e.g. a
+      // literal "Discontinued" marker row instead of a real product).
+      if(sku.toLowerCase() === "discontinued") continue;
+
+      // Some exports leave Name blank for a row but still have a usable
+      // product title in Description - fall back to that before the SKU.
+      if(!name) name = description || sku;
+
+      var barcodes = [];
+      [ean, upc, singleBarcode].forEach(function(b){
+        if(b && barcodes.indexOf(b) === -1) barcodes.push(b);
+      });
+      if(barcodes.length === 0) barcodes.push(sku);
+      if(!sku) sku = barcodes[0];
+
+      rows.push({ sku: sku, name: name, ean: ean, upc: upc, barcodes: barcodes, barcode: barcodes[0] });
+    }
+    return rows;
+  }
+
+  /* ---------- Boxes ---------- */
+  function addBox(){
+    boxCounter++;
+    boxes.push({ id: boxCounter, items: [] });
+    renderBoxes();
+  }
+
+  function removeBox(id){
+    boxes = boxes.filter(function(b){ return b.id !== id; });
+    renderBoxes();
+  }
+
+  function findProductMatches(query){
+    query = query.trim().toLowerCase();
+    if(query.length < MIN_SEARCH_CHARS) return [];
+    return catalog.filter(function(p){
+      if(p.sku.toLowerCase().indexOf(query) !== -1) return true;
+      if(p.name.toLowerCase().indexOf(query) !== -1) return true;
+      return p.barcodes.some(function(b){ return b.toLowerCase().indexOf(query) !== -1; });
+    }).slice(0, 10);
+  }
+
+  var boxSelections = {}; // boxId -> selected product
+
+  function renderBoxes(){
+    var area = document.getElementById("boxesArea");
+    if(boxes.length === 0){
+      area.innerHTML = '<div class="empty-hint">No boxes yet. Click "+ Add Box" to start.</div>';
+      return;
+    }
+    area.innerHTML = boxes.map(function(box, i){
+      var itemCount = box.items.reduce(function(s,it){ return s + it.qty; }, 0);
+      var sel = boxSelections[box.id];
+      var itemsHtml;
+      if(box.items.length === 0){
+        itemsHtml = '<div class="no-items">No products added yet.</div>';
+      } else {
+        itemsHtml = '<table><thead><tr><th>SKU</th><th>Product</th><th>Qty</th><th></th></tr></thead><tbody>' +
+          box.items.map(function(it, idx){
+            return '<tr><td>'+escapeHtml(it.sku)+'</td><td>'+escapeHtml(it.name)+'</td><td>'+it.qty+
+              '</td><td><button class="small danger" data-box="'+box.id+'" data-idx="'+idx+'" data-action="delItem">Remove</button></td></tr>';
+          }).join("") + '</tbody></table>';
+      }
+      var selectedRowHtml = sel ? (
+        '<div class="selected-product-row">' +
+          '<div class="sp-info"><div class="sp-name">'+escapeHtml(sel.name)+'</div><div class="sp-sku">SKU: '+escapeHtml(sel.sku)+'</div></div>' +
+          '<div><label class="field-label">Quantity</label><input type="number" min="1" value="1" class="qty-input" data-box="'+box.id+'" id="qtyInput-'+box.id+'"></div>' +
+          '<button class="primary" data-box="'+box.id+'" data-action="addItem">Add to box</button>' +
+          '<button class="small" data-box="'+box.id+'" data-action="clearSelection">Cancel</button>' +
+        '</div>'
+      ) : "";
+      return (
+        '<div class="box-card" data-box-id="'+box.id+'">' +
+          '<div class="box-card-header"><h3>Box '+(i+1)+' <span class="count">('+itemCount+' item'+(itemCount===1?'':'s')+')</span></h3>' +
+            '<button class="small danger" data-box="'+box.id+'" data-action="removeBox">Remove box</button></div>' +
+          '<div class="search-wrap">' +
+            '<input type="text" placeholder="Search by product name, SKU, or barcode (type 3+ characters)..." data-box="'+box.id+'" class="product-search" autocomplete="off">' +
+            '<div class="search-results" data-box="'+box.id+'" style="display:none;"></div>' +
+          '</div>' +
+          selectedRowHtml +
+          '<div class="item-table-wrap">'+itemsHtml+'</div>' +
+        '</div>'
+      );
+    }).join("");
+  }
+
+  document.getElementById("addBoxBtn").addEventListener("click", addBox);
+
+  document.getElementById("clearAllBtn").addEventListener("click", function(){
+    if(boxes.length === 0) return;
+    if(confirm("Clear all boxes in the current package? This cannot be undone.")){
+      boxes = [];
+      boxSelections = {};
+      renderBoxes();
+    }
+  });
+
+  document.getElementById("boxesArea").addEventListener("click", function(e){
+    var actionEl = e.target.closest("[data-action]");
+    if(!actionEl) return;
+    var action = actionEl.getAttribute("data-action");
+    var boxId = parseInt(actionEl.getAttribute("data-box"), 10);
+
+    if(action === "removeBox"){
+      removeBox(boxId);
+    } else if(action === "delItem"){
+      var idx = parseInt(actionEl.getAttribute("data-idx"), 10);
+      var box = boxes.find(function(b){ return b.id === boxId; });
+      if(box){ box.items.splice(idx, 1); renderBoxes(); }
+    } else if(action === "addItem"){
+      var sel = boxSelections[boxId];
+      var box2 = boxes.find(function(b){ return b.id === boxId; });
+      var qtyEl = document.getElementById("qtyInput-"+boxId);
+      var qty = qtyEl ? parseInt(qtyEl.value, 10) : 1;
+      if(!sel || !box2) return;
+      if(!qty || qty < 1) qty = 1;
+      box2.items.push({ sku: sel.sku, barcode: sel.barcode, name: sel.name, qty: qty });
+      delete boxSelections[boxId];
+      renderBoxes();
+    } else if(action === "clearSelection"){
+      delete boxSelections[boxId];
+      renderBoxes();
+    }
+  });
+
+  document.getElementById("boxesArea").addEventListener("input", function(e){
+    if(e.target.classList.contains("product-search")){
+      var boxId = e.target.getAttribute("data-box");
+      var resultsEl = document.querySelector('.search-results[data-box="'+boxId+'"]');
+      var q = e.target.value.trim();
+      if(q.length < MIN_SEARCH_CHARS){
+        resultsEl.style.display = "none";
+        resultsEl.innerHTML = "";
+        return;
+      }
+      var matches = findProductMatches(q);
+      if(matches.length === 0){
+        resultsEl.innerHTML = '<div class="search-no-results">No matching products</div>';
+      } else {
+        resultsEl.innerHTML = matches.map(function(p){
+          return '<div class="search-result-item" data-box="'+boxId+'" data-sku="'+escapeHtml(p.sku)+'">' +
+            '<span class="sr-sku">'+escapeHtml(p.sku)+'</span> &mdash; '+escapeHtml(p.name)+
+            ' <span class="sr-name">('+escapeHtml(p.barcodes.join(", "))+')</span></div>';
+        }).join("");
+      }
+      resultsEl.style.display = "block";
+    }
+  });
+
+  document.getElementById("boxesArea").addEventListener("click", function(e){
+    var item = e.target.closest(".search-result-item");
+    if(!item) return;
+    var boxId = parseInt(item.getAttribute("data-box"), 10);
+    var sku = item.getAttribute("data-sku");
+    var product = catalog.find(function(p){ return p.sku === sku; });
+    if(!product) return;
+    boxSelections[boxId] = product;
+    var searchInput = document.querySelector('.product-search[data-box="'+boxId+'"]');
+    if(searchInput) searchInput.value = "";
+    var resultsEl = document.querySelector('.search-results[data-box="'+boxId+'"]');
+    if(resultsEl){ resultsEl.style.display = "none"; resultsEl.innerHTML = ""; }
+    renderBoxes();
+  });
+
+  document.addEventListener("click", function(e){
+    if(!e.target.closest(".search-wrap")){
+      document.querySelectorAll(".search-results").forEach(function(el){ el.style.display = "none"; });
+    }
+  });
+
+  /* ---------- Print ---------- */
+  function chunk(arr, size){
+    var out = [];
+    for(var i=0;i<arr.length;i+=size) out.push(arr.slice(i, i+size));
+    return out;
+  }
+
+  function buildPrintArea(){
+    var printArea = document.getElementById("printArea");
+    printArea.innerHTML = "";
+    var totalBoxes = boxes.length;
+    var dateStr = new Date().toLocaleDateString();
+    var svgCounter = 0;
+    var barcodeJobs = [];
+
+    boxes.forEach(function(box, boxIdx){
+      var pages = chunk(box.items, MAX_ITEMS_PER_LABEL_PAGE);
+      if(pages.length === 0) pages = [[]];
+      pages.forEach(function(pageItems, pageIdx){
+        var label = document.createElement("div");
+        label.className = "label";
+
+        var header = document.createElement("div");
+        header.className = "label-header";
+        var logoSlot = document.createElement("div");
+        logoSlot.className = "logo-slot";
+        var effectiveLogo = getEffectiveLogoSrc();
+        if(effectiveLogo){
+          logoSlot.innerHTML = '<img src="'+effectiveLogo+'" alt="logo">';
+        }
+        var titleSlot = document.createElement("div");
+        titleSlot.className = "box-title";
+        var pageSuffix = pages.length > 1 ? (" (page "+(pageIdx+1)+"/"+pages.length+")") : "";
+        titleSlot.innerHTML = '<div class="bn">Box '+(boxIdx+1)+' of '+totalBoxes+'</div><div class="dt">'+dateStr+pageSuffix+'</div>';
+        header.appendChild(logoSlot);
+        header.appendChild(titleSlot);
+        label.appendChild(header);
+
+        var itemsWrap = document.createElement("div");
+        itemsWrap.className = "label-items";
+        pageItems.forEach(function(it){
+          var row = document.createElement("div");
+          row.className = "item-row";
+          svgCounter++;
+          var svgId = "bc-"+svgCounter;
+          row.innerHTML =
+            '<div class="barcode-slot"><svg id="'+svgId+'"></svg></div>' +
+            '<div class="item-info"><div class="iname">'+escapeHtml(it.name)+'</div>' +
+            '<div class="isku">SKU: '+escapeHtml(it.sku)+'</div>' +
+            '<div class="iqty">Qty: '+it.qty+'</div></div>';
+          itemsWrap.appendChild(row);
+          barcodeJobs.push({ id: svgId, value: it.barcode || it.sku });
+        });
+        label.appendChild(itemsWrap);
+
+        var footer = document.createElement("div");
+        footer.className = "label-footer";
+        footer.textContent = "Generated " + new Date().toLocaleString();
+        label.appendChild(footer);
+
+        printArea.appendChild(label);
+      });
+    });
+
+    return barcodeJobs;
+  }
+
+  function renderBarcodes(jobs){
+    jobs.forEach(function(job){
+      try{
+        JsBarcode("#"+job.id, job.value, {
+          format: "CODE128",
+          displayValue: true,
+          fontSize: 10,
+          height: 34,
+          width: 1.4,
+          margin: 2
+        });
+      }catch(err){
+        console.error("Barcode render failed for", job.value, err);
+      }
+    });
+  }
+
+  function doPrintWhenReady(jobs, attemptsLeft){
+    if(typeof window.JsBarcode === "undefined"){
+      if(attemptsLeft <= 0){
+        toast("Barcode library did not load (check internet connection) - printing without barcodes");
+        window.print();
+        return;
+      }
+      setTimeout(function(){ doPrintWhenReady(jobs, attemptsLeft - 1); }, 400);
+      return;
+    }
+    renderBarcodes(jobs);
+    setTimeout(function(){ window.print(); }, 150);
+  }
+
+  document.getElementById("printBtn").addEventListener("click", function(){
+    if(boxes.length === 0){ toast("Add at least one box before printing"); return; }
+    var hasItems = boxes.some(function(b){ return b.items.length > 0; });
+    if(!hasItems){ toast("Add products to your boxes before printing"); return; }
+    var jobs = buildPrintArea();
+    doPrintWhenReady(jobs, 10);
+  });
+
+  /* ---------- Init ---------- */
+  renderLogoPreview();
+  renderCatalogTable();
+  renderBoxes();
+  renderSourceStatus();
+
+  loadRepoCatalog().then(function(){
+    renderCatalogTable();
+    renderSourceStatus();
+  });
+  loadRepoLogo().then(function(){
+    renderLogoPreview();
+    renderSourceStatus();
+  });
+})();
+</script>
+</body>
+</html>
