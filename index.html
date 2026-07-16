@@ -337,25 +337,24 @@
   var repoLogoPath = null;
 
   // Sends a summary email (box count, dimensions, weights, SKUs/quantities)
-  // by firing a GitHub "repository_dispatch" event, which triggers the
-  // .github/workflows/notify-packing-list.yml workflow in this same repo.
-  // That workflow does the actual Gmail sending via SMTP, using secrets
-  // stored in the repo (Settings -> Secrets and variables -> Actions), so
-  // the Gmail credentials and recipient list are never exposed in this
-  // public page's source. See README.md for full setup steps.
+  // through a small Cloudflare Worker relay (see cloudflare-worker.js and
+  // README.md), which then fires a GitHub "repository_dispatch" event that
+  // triggers the .github/workflows/notify-packing-list.yml workflow,
+  // which sends the email via Gmail SMTP.
   //
-  // GH_DISPATCH_TOKEN below IS visible to anyone who views this page's
-  // source. This is a classic GitHub personal access token with "repo"
-  // scope (fine-grained tokens kept expiring immediately due to what
-  // appears to be an account/org issue - see README for notes). Because
-  // it's a classic token, it grants access to ALL of this account's repos,
-  // not just this one - a real trade-off, accepted because this repo is
-  // public and low-stakes. It cannot touch Gmail or Google Workspace at
-  // all. Rotate/regenerate it periodically via github.com/settings/tokens.
-  var GH_OWNER = "imranarain84";
-  var GH_REPO = "UKShipment-BoxBarcodeGen";
-  var GH_EVENT_TYPE = "packing-list-completed";
-  var GH_DISPATCH_TOKEN = "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";
+  // A real GitHub token used to live directly in this file, but GitHub
+  // automatically revokes its own tokens the moment secret scanning spots
+  // them committed in a public repo - so any token embedded here died
+  // within minutes, every time. The Worker relay fixes this: the real
+  // GitHub token is a private, server-side secret on the Worker, never
+  // exposed in this public page. RELAY_TOKEN below IS visible to anyone
+  // who views this page's source, but it's just a shared password the
+  // Worker checks - not a real credential GitHub (or anyone else) would
+  // recognize or auto-revoke. Worst case if it leaked: someone could spam
+  // the notification workflow. They could not reach GitHub, Gmail, or
+  // anything else directly.
+  var RELAY_URL = "https://packing-list-relay.imran-0c3.workers.dev";
+  var RELAY_TOKEN = "iarain84";
 
   function saveCatalog(){ localStorage.setItem(LS_CATALOG, JSON.stringify(catalog)); }
   function saveHistory(){ localStorage.setItem(LS_HISTORY, JSON.stringify(history)); }
@@ -944,14 +943,14 @@
     setTimeout(function(){ window.print(); }, 150);
   }
 
-  // Fires a GitHub "repository_dispatch" event, which triggers the
-  // notify-packing-list workflow in this repo to send the notification
-  // email via Gmail SMTP. Unlike the old Apps Script fetch, GitHub's API
-  // returns a readable response even cross-origin, so a failure (bad
-  // token, wrong repo name, etc.) can actually be surfaced to the user
+  // Sends the packing list summary to the Cloudflare Worker relay, which
+  // holds the real GitHub token privately and fires the
+  // notify-packing-list workflow on our behalf. The Worker returns a real
+  // JSON response, so a failure (bad relay token, Worker misconfigured,
+  // GitHub dispatch itself failing, etc.) can be surfaced to the user
   // instead of silently vanishing.
   function sendPackageNotification(boxesArr){
-    if(!GH_DISPATCH_TOKEN || GH_DISPATCH_TOKEN.indexOf("PASTE_YOUR") === 0) return; // not configured yet
+    if(!RELAY_URL || RELAY_URL.indexOf("PASTE_YOUR") === 0) return; // not configured yet
     var payload = {
       completedAt: new Date().toISOString(),
       boxCount: boxesArr.length,
@@ -970,22 +969,19 @@
         };
       })
     };
-    var dispatchUrl = "https://api.github.com/repos/" + GH_OWNER + "/" + GH_REPO + "/dispatches";
-    fetch(dispatchUrl, {
+    fetch(RELAY_URL, {
       method: "POST",
-      headers: {
-        "Accept": "application/vnd.github+json",
-        "Authorization": "Bearer " + GH_DISPATCH_TOKEN,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ event_type: GH_EVENT_TYPE, client_payload: payload })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: RELAY_TOKEN, payload: payload })
     }).then(function(res){
-      if(!res.ok){
-        console.error("Notification dispatch failed:", res.status, res.statusText);
-        toast("Labels printed, but the notification email request failed (HTTP " + res.status + ") - check the GitHub token setup");
-      }
+      return res.json().catch(function(){ return {}; }).then(function(data){
+        if(!res.ok || !data.ok){
+          console.error("Notification relay failed:", res.status, data);
+          toast("Labels printed, but the notification email request failed - check the relay setup");
+        }
+      });
     }).catch(function(err){
-      console.error("Notification dispatch request failed to send:", err);
+      console.error("Notification relay request failed to send:", err);
       toast("Labels printed, but the notification email request could not be sent");
     });
   }
