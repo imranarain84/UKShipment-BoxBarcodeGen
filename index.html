@@ -336,15 +336,25 @@
   var catalogSource = "local"; // "repo" | "local"
   var repoLogoPath = null;
 
-  // Sends a summary email (box count, dimensions, weights) via a Google
-  // Apps Script Web App tied to a Gmail account. Replace NOTIFY_URL with
-  // the "Web app URL" you get after deploying the provided Code.gs script,
-  // and NOTIFY_TOKEN with the same value you set in that script's Script
-  // Properties. See README.md for full setup steps. Recipients are NOT
-  // configured here - they live in the Apps Script's Script Properties so
-  // they aren't exposed in this public page's source code.
-  var NOTIFY_URL = "https://script.google.com/a/macros/verticalpassage.com/s/AKfycbwuAu4Q2RWG3xQ4YwJQrY4xN6oTFwwDcK9oTp6GUKq-teqL89V4RqvBnxtzc0HDfL0kKA/exec";
-  var NOTIFY_TOKEN = "iarain84";
+  // Sends a summary email (box count, dimensions, weights, SKUs/quantities)
+  // by firing a GitHub "repository_dispatch" event, which triggers the
+  // .github/workflows/notify-packing-list.yml workflow in this same repo.
+  // That workflow does the actual Gmail sending via SMTP, using secrets
+  // stored in the repo (Settings -> Secrets and variables -> Actions), so
+  // the Gmail credentials and recipient list are never exposed in this
+  // public page's source. See README.md for full setup steps.
+  //
+  // GH_DISPATCH_TOKEN below IS visible to anyone who views this page's
+  // source - it must be a fine-grained GitHub token scoped to ONLY this
+  // one repo, with ONLY the minimum permission needed to fire this event
+  // (Contents: Read and write). Rotate it periodically via its expiration
+  // date. Worst case if it leaked: someone could re-trigger this workflow
+  // (spamming the notification emails) or push small changes to this one
+  // repo - not access your Gmail account or any other repo.
+  var GH_OWNER = "imranarain84";
+  var GH_REPO = "UKShipment-BoxBarcodeGen";
+  var GH_EVENT_TYPE = "packing-list-completed";
+  var GH_DISPATCH_TOKEN = "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";
 
   function saveCatalog(){ localStorage.setItem(LS_CATALOG, JSON.stringify(catalog)); }
   function saveHistory(){ localStorage.setItem(LS_HISTORY, JSON.stringify(history)); }
@@ -933,16 +943,15 @@
     setTimeout(function(){ window.print(); }, 150);
   }
 
-  // Fire-and-forget notification email via the Apps Script Web App. Uses
-  // mode:"no-cors" because Apps Script web apps don't return CORS headers
-  // browsers accept for a readable cross-origin response - this means we
-  // can't tell whether the send actually succeeded, only that the request
-  // went out. That's an acceptable trade-off for a "just let people know"
-  // notification; verify once during setup by checking the inbox.
+  // Fires a GitHub "repository_dispatch" event, which triggers the
+  // notify-packing-list workflow in this repo to send the notification
+  // email via Gmail SMTP. Unlike the old Apps Script fetch, GitHub's API
+  // returns a readable response even cross-origin, so a failure (bad
+  // token, wrong repo name, etc.) can actually be surfaced to the user
+  // instead of silently vanishing.
   function sendPackageNotification(boxesArr){
-    if(!NOTIFY_URL || NOTIFY_URL.indexOf("PASTE_YOUR") === 0) return; // not configured yet
+    if(!GH_DISPATCH_TOKEN || GH_DISPATCH_TOKEN.indexOf("PASTE_YOUR") === 0) return; // not configured yet
     var payload = {
-      token: NOTIFY_TOKEN,
       completedAt: new Date().toISOString(),
       boxCount: boxesArr.length,
       boxes: boxesArr.map(function(b, idx){
@@ -960,16 +969,24 @@
         };
       })
     };
-    try{
-      fetch(NOTIFY_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload)
-      });
-    }catch(err){
-      console.error("Notification email request failed to send:", err);
-    }
+    var dispatchUrl = "https://api.github.com/repos/" + GH_OWNER + "/" + GH_REPO + "/dispatches";
+    fetch(dispatchUrl, {
+      method: "POST",
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": "Bearer " + GH_DISPATCH_TOKEN,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ event_type: GH_EVENT_TYPE, client_payload: payload })
+    }).then(function(res){
+      if(!res.ok){
+        console.error("Notification dispatch failed:", res.status, res.statusText);
+        toast("Labels printed, but the notification email request failed (HTTP " + res.status + ") - check the GitHub token setup");
+      }
+    }).catch(function(err){
+      console.error("Notification dispatch request failed to send:", err);
+      toast("Labels printed, but the notification email request could not be sent");
+    });
   }
 
   document.getElementById("printBtn").addEventListener("click", function(){
