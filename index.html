@@ -345,16 +345,17 @@
   // public page's source. See README.md for full setup steps.
   //
   // GH_DISPATCH_TOKEN below IS visible to anyone who views this page's
-  // source - it must be a fine-grained GitHub token scoped to ONLY this
-  // one repo, with ONLY the minimum permission needed to fire this event
-  // (Contents: Read and write). Rotate it periodically via its expiration
-  // date. Worst case if it leaked: someone could re-trigger this workflow
-  // (spamming the notification emails) or push small changes to this one
-  // repo - not access your Gmail account or any other repo.
+  // source. This is a classic GitHub personal access token with "repo"
+  // scope (fine-grained tokens kept expiring immediately due to what
+  // appears to be an account/org issue - see README for notes). Because
+  // it's a classic token, it grants access to ALL of this account's repos,
+  // not just this one - a real trade-off, accepted because this repo is
+  // public and low-stakes. It cannot touch Gmail or Google Workspace at
+  // all. Rotate/regenerate it periodically via github.com/settings/tokens.
   var GH_OWNER = "imranarain84";
   var GH_REPO = "UKShipment-BoxBarcodeGen";
   var GH_EVENT_TYPE = "packing-list-completed";
-  var GH_DISPATCH_TOKEN = "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";
+  var GH_DISPATCH_TOKEN = "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";
 
   function saveCatalog(){ localStorage.setItem(LS_CATALOG, JSON.stringify(catalog)); }
   function saveHistory(){ localStorage.setItem(LS_HISTORY, JSON.stringify(history)); }
