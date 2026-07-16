@@ -954,7 +954,10 @@
           length: d.length || "",
           width: d.width || "",
           height: d.height || "",
-          weight: d.weight || ""
+          weight: d.weight || "",
+          products: (b.items || []).map(function(it){
+            return { sku: it.sku, qty: it.qty };
+          })
         };
       })
     };
