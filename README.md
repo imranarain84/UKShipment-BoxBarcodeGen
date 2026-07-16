@@ -1,4 +1,4 @@
-# Box Label Generator — GitHub Pages setup
+# Packing List Label Generator — GitHub Pages setup
 
 This tool is a single static page (`index.html`). No server, no database, no
 DigitalOcean needed — GitHub Pages hosts static files for free.
@@ -12,13 +12,17 @@ DigitalOcean needed — GitHub Pages hosts static files for free.
   `UPCBarcode` columns and ignores everything else (price, weight, category,
   etc.), so you can keep exporting from your inventory system in the same
   format and just drop the new file in to replace this one.
-- Add your own `logo.png` (or `logo.jpg` / `.jpeg` / `.svg`) to this same
-  folder if you want it on the printed labels. Not required.
+- `logo.png` (or `logo.jpg` / `.jpeg` / `.svg`) — add your company logo here
+  with exactly this name and it appears centered at the top of the page and
+  on every printed label. This is hardcoded on purpose: there's no button in
+  the app to change or remove it, so the only way to update the logo is to
+  replace this file in the repo.
 
 The page automatically fetches `catalog.csv` and looks for a `logo.*` file
 next to it on every load — that's what makes the hosted version "one shared
-version" for the whole team. No file found means the page falls back to
-manual entry/upload saved only in that person's browser.
+version" for the whole team. If `catalog.csv` is missing, the page falls
+back to manual product entry saved only in that person's browser; if no
+logo file is found, no logo is shown (nothing for a warehouse user to set).
 
 Two things worth checking in your source data next time you export: row 45
 in the current file has literal "Discontinued" text in the SKU/Name/EAN
@@ -63,3 +67,16 @@ scanned barcode both work.
 Open the hosted URL on the computer connected to the thermal printer, use
 the tool as normal, and when you click "Complete & Print Labels" choose the
 thermal printer in the browser's print dialog. Chrome is recommended.
+
+Every box automatically prints twice: the first copy is labeled "APPLY TO
+OUTSIDE OF BOX," and the second has a large bold banner reading "PLACE THIS
+LABEL INSIDE THE BOX" — a reminder to drop that second copy inside the box
+after sealing it, so the contents list travels with the box even if the
+outside label is damaged or removed.
+
+## Appearance
+
+The page uses a dark theme (black background) throughout the app itself.
+Printed labels are unaffected — they always print on a plain white
+background with black text/barcodes, since that's what thermal printers
+expect.

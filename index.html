@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Box Label Generator</title>
+<title>Packing List Label Generator</title>
 <script>
   // Load JsBarcode with fallback CDNs in case one is unreachable.
   (function loadBarcodeLib(sources){
@@ -23,15 +23,16 @@
 </script>
 <style>
   :root{
-    --accent:#2454b8;
-    --bg:#f4f6f9;
-    --card:#ffffff;
-    --border:#d7dce3;
-    --text:#1f2937;
-    --muted:#6b7280;
-    --danger:#c0392b;
-    --danger-bg:#fdecea;
-    --good:#1e824c;
+    --accent:#4d84ff;
+    --bg:#000000;
+    --card:#18181b;
+    --card-alt:#212126;
+    --border:#333338;
+    --text:#e8e8ea;
+    --muted:#9a9aa2;
+    --danger:#ff6b6b;
+    --danger-bg:#3a1f20;
+    --good:#34d399;
   }
   *{box-sizing:border-box;}
   body{
@@ -43,19 +44,27 @@
   header{
     background:var(--card);
     border-bottom:1px solid var(--border);
-    padding:14px 24px;
+    padding:16px 24px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:8px;
+  }
+  .header-logo{ display:flex; justify-content:center; }
+  .header-logo img{ max-height:56px; max-width:220px; object-fit:contain; }
+  .header-main{
+    width:100%;
+    max-width:1000px;
     display:flex;
     align-items:center;
     justify-content:space-between;
     flex-wrap:wrap;
     gap:12px;
   }
-  header h1{ font-size:18px; margin:0; }
-  header .sub{ font-size:12px; color:var(--muted); margin-top:2px; }
+  header h1{ font-size:18px; margin:0; text-align:center; }
+  header .sub{ font-size:12px; color:var(--muted); margin-top:2px; text-align:center; }
+  .header-titles{ flex:1; text-align:center; }
   .header-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .logo-box{ display:flex; align-items:center; gap:8px; }
-  .logo-preview{ height:36px; max-width:100px; object-fit:contain; border:1px dashed var(--border); border-radius:4px; padding:2px; background:#fff; }
-  .logo-preview.empty{ display:flex; align-items:center; justify-content:center; font-size:10px; color:var(--muted); width:70px; }
 
   main{ max-width:1000px; margin:20px auto; padding:0 20px 60px; }
 
@@ -79,16 +88,16 @@
     font-size:13px;
     border-radius:6px;
     border:1px solid var(--border);
-    background:#fff;
+    background:var(--card-alt);
     padding:8px 14px;
     cursor:pointer;
     color:var(--text);
   }
-  button:hover{ background:#f0f2f5; }
+  button:hover{ background:#2c2c32; }
   button.primary{ background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
-  button.primary:hover{ background:#1c3f92; }
-  button.danger{ background:var(--danger-bg); color:var(--danger); border-color:#f2c9c5; }
-  button.danger:hover{ background:#f9d7d3; }
+  button.primary:hover{ background:#3568d6; }
+  button.danger{ background:var(--danger-bg); color:var(--danger); border-color:#5a2d2d; }
+  button.danger:hover{ background:#4a2626; }
   button.small{ padding:4px 9px; font-size:12px; }
   button:disabled{ opacity:.5; cursor:not-allowed; }
 
@@ -99,7 +108,10 @@
     border:1px solid var(--border);
     border-radius:6px;
     width:100%;
+    background:var(--card-alt);
+    color:var(--text);
   }
+  input[type=text]::placeholder, input[type=number]::placeholder{ color:var(--muted); }
   label.field-label{ font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--muted); display:block; margin-bottom:4px; }
 
   table{ width:100%; border-collapse:collapse; font-size:13px; }
@@ -121,18 +133,18 @@
   .search-wrap{ position:relative; margin-bottom:10px; }
   .search-results{
     position:absolute; z-index:20; top:100%; left:0; right:0;
-    background:#fff; border:1px solid var(--border); border-top:none;
+    background:var(--card-alt); border:1px solid var(--border); border-top:none;
     border-radius:0 0 8px 8px; max-height:220px; overflow-y:auto;
-    box-shadow:0 6px 14px rgba(0,0,0,.08);
+    box-shadow:0 6px 14px rgba(0,0,0,.4);
   }
-  .search-result-item{ padding:8px 10px; cursor:pointer; font-size:13px; border-bottom:1px solid #f0f2f5; }
-  .search-result-item:hover{ background:#eef2fb; }
+  .search-result-item{ padding:8px 10px; cursor:pointer; font-size:13px; border-bottom:1px solid var(--border); }
+  .search-result-item:hover{ background:#2c2c32; }
   .search-result-item .sr-sku{ font-weight:600; }
   .search-result-item .sr-name{ color:var(--muted); }
   .search-no-results{ padding:8px 10px; font-size:12px; color:var(--muted); }
 
   .selected-product-row{
-    display:flex; align-items:end; gap:10px; background:#f7f9fc; border:1px solid var(--border);
+    display:flex; align-items:end; gap:10px; background:var(--card-alt); border:1px solid var(--border);
     border-radius:8px; padding:10px 12px; margin-bottom:12px; flex-wrap:wrap;
   }
   .selected-product-row .sp-info{ flex:1; min-width:160px; }
@@ -168,6 +180,15 @@
   .label-header .box-title{ text-align:right; }
   .label-header .box-title .bn{ font-size:16pt; font-weight:800; line-height:1.1; }
   .label-header .box-title .dt{ font-size:8pt; color:#444; }
+  .copy-banner{
+    text-align:center; font-weight:700; font-size:9pt; color:#000;
+    padding:0.05in 0; margin-bottom:0.1in; border:1.5px solid #000;
+    border-radius:4px; letter-spacing:0.02em;
+  }
+  .copy-banner.inside{
+    background:#000; color:#fff; font-size:14pt; font-weight:900;
+    padding:0.12in 0; border:none;
+  }
   .label-items{ flex:1; display:flex; flex-direction:column; gap:0.06in; overflow:hidden; }
   .item-row{ display:flex; align-items:center; gap:0.12in; border-bottom:1px dashed #bbb; padding-bottom:0.05in; }
   .item-row .barcode-slot svg{ display:block; }
@@ -188,21 +209,18 @@
 <body>
 
 <header class="no-print">
-  <div>
-    <h1>Box Label Generator</h1>
-    <div class="sub">Build boxes, add products, print 4"×6" thermal labels</div>
-  </div>
-  <div class="header-actions">
-    <div class="logo-box">
-      <span id="logoPreviewWrap"></span>
-      <button id="logoUploadBtn" class="small">Set logo</button>
-      <input type="file" id="logoFileInput" accept="image/*" style="display:none">
-      <button id="logoRemoveBtn" class="small" style="display:none">Remove</button>
+  <div class="header-logo" id="headerLogoWrap"></div>
+  <div class="header-main">
+    <div class="header-titles">
+      <h1>Packing List Label Generator</h1>
+      <div class="sub">Build boxes, add products, print 4"×6" thermal labels to apply to the outside of boxes.</div>
     </div>
-    <button id="toggleCatalogBtn">Manage Products</button>
+    <div class="header-actions">
+      <button id="toggleCatalogBtn">Manage Products</button>
+    </div>
   </div>
 </header>
-<div class="csv-hint no-print" id="sourceStatus" style="padding:6px 24px; background:#eef2fb;"></div>
+<div class="csv-hint no-print" id="sourceStatus" style="padding:6px 24px; background:var(--card-alt); border-bottom:1px solid var(--border);"></div>
 
 <main class="no-print">
 
@@ -262,29 +280,27 @@
 
   /* ---------- State ---------- */
   var LS_CATALOG = "boxlabel_catalog_v1";
-  var LS_LOGO = "boxlabel_logo_v1";
   var catalog = JSON.parse(localStorage.getItem(LS_CATALOG) || "[]");
-  var logoDataUrl = localStorage.getItem(LS_LOGO) || "";
   var boxes = []; // {id, items:[{sku,barcode,name,qty}]}
   var boxCounter = 0;
-  var MAX_ITEMS_PER_LABEL_PAGE = 9;
+  var MAX_ITEMS_PER_LABEL_PAGE = 8;
   var MIN_SEARCH_CHARS = 3; // results start appearing once this many characters are typed
+  var PRINT_COPIES_PER_BOX = 2; // 1 to apply outside the box, 1 to place inside
 
-  // When this tool is hosted (e.g. GitHub Pages) with a catalog.csv and/or
-  // logo.png sitting next to index.html, those repo files are treated as the
-  // shared source of truth so every teammate sees the same catalog/logo
-  // without any manual import. Local file:// usage (or missing repo files)
-  // falls back to whatever was saved locally via the manual controls below.
+  // When this tool is hosted (e.g. GitHub Pages) with a catalog.csv and a
+  // logo file sitting next to index.html, those repo files are treated as
+  // the shared source of truth so every teammate sees the same catalog and
+  // company logo without any manual setup. The logo is intentionally not
+  // user-editable in the UI - swap the repo's logo.* file to change it.
   var CATALOG_URL = "catalog.csv";
   var LOGO_CANDIDATES = ["logo.png", "logo.jpg", "logo.jpeg", "logo.svg"];
   var catalogSource = "local"; // "repo" | "local"
   var repoLogoPath = null;
 
   function saveCatalog(){ localStorage.setItem(LS_CATALOG, JSON.stringify(catalog)); }
-  function saveLogo(){ localStorage.setItem(LS_LOGO, logoDataUrl); }
 
   function getEffectiveLogoSrc(){
-    return repoLogoPath || logoDataUrl || "";
+    return repoLogoPath || "";
   }
 
   function renderSourceStatus(){
@@ -297,8 +313,16 @@
     } else {
       parts.push("No product catalog loaded — add a catalog.csv next to index.html, or add products manually below");
     }
-    parts.push(repoLogoPath ? "logo from " + repoLogoPath : (logoDataUrl ? "logo saved locally" : "no logo set"));
     el.textContent = parts.join(" • ");
+  }
+
+  function renderHeaderLogo(){
+    var wrap = document.getElementById("headerLogoWrap");
+    if(repoLogoPath){
+      wrap.innerHTML = '<img src="'+repoLogoPath+'" alt="Company logo">';
+    } else {
+      wrap.innerHTML = "";
+    }
   }
 
   function loadRepoCatalog(){
@@ -337,49 +361,6 @@
     clearTimeout(toast._h);
     toast._h = setTimeout(function(){ t.classList.remove("show"); }, 2200);
   }
-
-  /* ---------- Logo ---------- */
-  function renderLogoPreview(){
-    var wrap = document.getElementById("logoPreviewWrap");
-    var uploadBtn = document.getElementById("logoUploadBtn");
-    var removeBtn = document.getElementById("logoRemoveBtn");
-    var effective = getEffectiveLogoSrc();
-    if(effective){
-      wrap.innerHTML = '<img class="logo-preview" src="'+effective+'" alt="logo">';
-    } else {
-      wrap.innerHTML = '<span class="logo-preview empty">no logo</span>';
-    }
-    if(repoLogoPath){
-      // Repo-provided logo takes precedence; manual controls are disabled to avoid confusion.
-      uploadBtn.disabled = true;
-      uploadBtn.title = "Logo is managed via " + repoLogoPath + " in the repo";
-      removeBtn.style.display = "none";
-    } else {
-      uploadBtn.disabled = false;
-      uploadBtn.title = "";
-      removeBtn.style.display = logoDataUrl ? "inline-block" : "none";
-    }
-  }
-  document.getElementById("logoUploadBtn").addEventListener("click", function(){
-    document.getElementById("logoFileInput").click();
-  });
-  document.getElementById("logoFileInput").addEventListener("change", function(e){
-    var file = e.target.files[0];
-    if(!file) return;
-    var reader = new FileReader();
-    reader.onload = function(ev){
-      logoDataUrl = ev.target.result;
-      saveLogo();
-      renderLogoPreview();
-      toast("Logo saved");
-    };
-    reader.readAsDataURL(file);
-  });
-  document.getElementById("logoRemoveBtn").addEventListener("click", function(){
-    logoDataUrl = "";
-    saveLogo();
-    renderLogoPreview();
-  });
 
   /* ---------- Catalog panel toggle ---------- */
   document.getElementById("toggleCatalogBtn").addEventListener("click", function(){
@@ -714,54 +695,70 @@
     var dateStr = new Date().toLocaleDateString();
     var svgCounter = 0;
     var barcodeJobs = [];
+    var effectiveLogo = getEffectiveLogoSrc();
 
     boxes.forEach(function(box, boxIdx){
       var pages = chunk(box.items, MAX_ITEMS_PER_LABEL_PAGE);
       if(pages.length === 0) pages = [[]];
-      pages.forEach(function(pageItems, pageIdx){
-        var label = document.createElement("div");
-        label.className = "label";
 
-        var header = document.createElement("div");
-        header.className = "label-header";
-        var logoSlot = document.createElement("div");
-        logoSlot.className = "logo-slot";
-        var effectiveLogo = getEffectiveLogoSrc();
-        if(effectiveLogo){
-          logoSlot.innerHTML = '<img src="'+effectiveLogo+'" alt="logo">';
-        }
-        var titleSlot = document.createElement("div");
-        titleSlot.className = "box-title";
-        var pageSuffix = pages.length > 1 ? (" (page "+(pageIdx+1)+"/"+pages.length+")") : "";
-        titleSlot.innerHTML = '<div class="bn">Box '+(boxIdx+1)+' of '+totalBoxes+'</div><div class="dt">'+dateStr+pageSuffix+'</div>';
-        header.appendChild(logoSlot);
-        header.appendChild(titleSlot);
-        label.appendChild(header);
+      // Two copies of every box's label are printed back-to-back: one to
+      // apply to the outside of the box, one to drop inside the box after
+      // it's packed - so the contents travel with the box even if the
+      // outer label gets damaged or removed in transit.
+      for(var copyNum = 1; copyNum <= PRINT_COPIES_PER_BOX; copyNum++){
+        var isInsideCopy = copyNum === PRINT_COPIES_PER_BOX;
 
-        var itemsWrap = document.createElement("div");
-        itemsWrap.className = "label-items";
-        pageItems.forEach(function(it){
-          var row = document.createElement("div");
-          row.className = "item-row";
-          svgCounter++;
-          var svgId = "bc-"+svgCounter;
-          row.innerHTML =
-            '<div class="barcode-slot"><svg id="'+svgId+'"></svg></div>' +
-            '<div class="item-info"><div class="iname">'+escapeHtml(it.name)+'</div>' +
-            '<div class="isku">SKU: '+escapeHtml(it.sku)+'</div>' +
-            '<div class="iqty">Qty: '+it.qty+'</div></div>';
-          itemsWrap.appendChild(row);
-          barcodeJobs.push({ id: svgId, value: it.barcode || it.sku });
+        pages.forEach(function(pageItems, pageIdx){
+          var label = document.createElement("div");
+          label.className = "label";
+
+          var header = document.createElement("div");
+          header.className = "label-header";
+          var logoSlot = document.createElement("div");
+          logoSlot.className = "logo-slot";
+          if(effectiveLogo){
+            logoSlot.innerHTML = '<img src="'+effectiveLogo+'" alt="logo">';
+          }
+          var titleSlot = document.createElement("div");
+          titleSlot.className = "box-title";
+          var pageSuffix = pages.length > 1 ? (" (page "+(pageIdx+1)+"/"+pages.length+")") : "";
+          titleSlot.innerHTML = '<div class="bn">Box '+(boxIdx+1)+' of '+totalBoxes+'</div><div class="dt">'+dateStr+pageSuffix+'</div>';
+          header.appendChild(logoSlot);
+          header.appendChild(titleSlot);
+          label.appendChild(header);
+
+          var banner = document.createElement("div");
+          banner.className = "copy-banner" + (isInsideCopy ? " inside" : "");
+          banner.textContent = isInsideCopy
+            ? "PLACE THIS LABEL INSIDE THE BOX"
+            : "COPY " + copyNum + " OF " + PRINT_COPIES_PER_BOX + " — APPLY TO OUTSIDE OF BOX";
+          label.appendChild(banner);
+
+          var itemsWrap = document.createElement("div");
+          itemsWrap.className = "label-items";
+          pageItems.forEach(function(it){
+            var row = document.createElement("div");
+            row.className = "item-row";
+            svgCounter++;
+            var svgId = "bc-"+svgCounter;
+            row.innerHTML =
+              '<div class="barcode-slot"><svg id="'+svgId+'"></svg></div>' +
+              '<div class="item-info"><div class="iname">'+escapeHtml(it.name)+'</div>' +
+              '<div class="isku">SKU: '+escapeHtml(it.sku)+'</div>' +
+              '<div class="iqty">Qty: '+it.qty+'</div></div>';
+            itemsWrap.appendChild(row);
+            barcodeJobs.push({ id: svgId, value: it.barcode || it.sku });
+          });
+          label.appendChild(itemsWrap);
+
+          var footer = document.createElement("div");
+          footer.className = "label-footer";
+          footer.textContent = "Generated " + new Date().toLocaleString();
+          label.appendChild(footer);
+
+          printArea.appendChild(label);
         });
-        label.appendChild(itemsWrap);
-
-        var footer = document.createElement("div");
-        footer.className = "label-footer";
-        footer.textContent = "Generated " + new Date().toLocaleString();
-        label.appendChild(footer);
-
-        printArea.appendChild(label);
-      });
+      }
     });
 
     return barcodeJobs;
@@ -807,7 +804,7 @@
   });
 
   /* ---------- Init ---------- */
-  renderLogoPreview();
+  renderHeaderLogo();
   renderCatalogTable();
   renderBoxes();
   renderSourceStatus();
@@ -817,7 +814,7 @@
     renderSourceStatus();
   });
   loadRepoLogo().then(function(){
-    renderLogoPreview();
+    renderHeaderLogo();
     renderSourceStatus();
   });
 })();
