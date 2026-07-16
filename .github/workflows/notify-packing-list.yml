@@ -1,0 +1,50 @@
+name: Send packing list notification email
+ 
+# Triggered by a fetch() call from index.html every time someone clicks
+# "Complete & Print Labels" on the hosted GitHub Pages site. GitHub Pages
+# itself can't run backend code or send email, so this workflow is the
+# small piece of "server" that does the actual Gmail sending - the same
+# GitHub Actions + Gmail SMTP pattern already used for other automations
+# on this account, just triggered on demand instead of on a schedule.
+on:
+  repository_dispatch:
+    types: [packing-list-completed]
+ 
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build email body from the submitted packing list
+        env:
+          PAYLOAD: ${{ toJson(github.event.client_payload) }}
+        run: |
+          node -e '
+            var p = JSON.parse(process.env.PAYLOAD);
+            var lines = [];
+            lines.push("A packing list was just completed and printed.");
+            lines.push("");
+            lines.push("Completed at: " + p.completedAt);
+            lines.push("Total boxes: " + p.boxCount);
+            lines.push("");
+            (p.boxes || []).forEach(function (b) {
+              var dims = (b.length || "?") + " x " + (b.width || "?") + " x " + (b.height || "?") + " in";
+              var weight = b.weight ? (b.weight + " lb") : "weight not entered";
+              lines.push("Box " + b.box + ": " + b.items + " item(s), " + dims + ", " + weight);
+              (b.products || []).forEach(function (pr) {
+                lines.push("   - " + pr.sku + ": qty " + pr.qty);
+              });
+            });
+            require("fs").writeFileSync("email_body.txt", lines.join("\n"));
+          '
+ 
+      - name: Send notification email via Gmail
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          from: ${{ secrets.GMAIL_USERNAME }}
+          to: ${{ secrets.NOTIFY_EMAILS }}
+          subject: "UK Phone Case Shipment - FedEx Labels & Commercial Invoice Needed"
+          body: file://email_body.txt
