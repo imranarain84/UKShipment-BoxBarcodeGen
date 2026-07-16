@@ -18,6 +18,9 @@ DigitalOcean needed — GitHub Pages hosts static files for free.
   label. This is hardcoded on purpose: there's no button in the app to
   change or remove it, so the only way to update the logo is to replace
   this file in the repo.
+- `favicon.png` (or `favicon.ico`) — add this and it becomes the browser
+  tab icon, replacing the default gray icon. Just save your icon file with
+  exactly this name at the repo root, next to `index.html`.
 
 The page automatically fetches `catalog.csv` and looks for a `logo.*` file
 next to it on every load — that's what makes the hosted version "one shared
