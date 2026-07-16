@@ -12,11 +12,12 @@ DigitalOcean needed — GitHub Pages hosts static files for free.
   `UPCBarcode` columns and ignores everything else (price, weight, category,
   etc.), so you can keep exporting from your inventory system in the same
   format and just drop the new file in to replace this one.
-- `logo.png` (or `logo.jpg` / `.jpeg` / `.svg`) — add your company logo here
-  with exactly this name and it appears centered at the top of the page and
-  on every printed label. This is hardcoded on purpose: there's no button in
-  the app to change or remove it, so the only way to update the logo is to
-  replace this file in the repo.
+- `logo.png` (or `logo.jpg` / `.jpeg` / `.svg`, common casings like `Logo.png`
+  also work) — add your company logo here and it appears left-aligned,
+  0.5in from the top and left edge of the page, plus on every printed
+  label. This is hardcoded on purpose: there's no button in the app to
+  change or remove it, so the only way to update the logo is to replace
+  this file in the repo.
 
 The page automatically fetches `catalog.csv` and looks for a `logo.*` file
 next to it on every load — that's what makes the hosted version "one shared
@@ -73,6 +74,18 @@ OUTSIDE OF BOX," and the second has a large bold banner reading "PLACE THIS
 LABEL INSIDE THE BOX" — a reminder to drop that second copy inside the box
 after sealing it, so the contents list travels with the box even if the
 outside label is damaged or removed.
+
+## History tab
+
+Every time "Complete & Print Labels" is clicked, that packing list (every
+box, product, and quantity) is saved to a History tab, listed by the date
+it was completed and the total item quantity across all boxes, newest
+first. "Reprint / Edit" loads it back into the Package Builder — add,
+remove, or change quantities, then click "Complete & Print Labels" again to
+print the corrected version (which is saved as its own new history entry,
+so nothing is overwritten). History is stored in that browser only, the
+same way the manual product entry fallback is — it doesn't sync between
+different warehouse computers.
 
 ## Appearance
 

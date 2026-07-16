@@ -44,17 +44,19 @@
   header{
     background:var(--card);
     border-bottom:1px solid var(--border);
-    padding:16px 24px;
+    padding:0 0 16px;
     display:flex;
     flex-direction:column;
     align-items:center;
     gap:8px;
   }
-  .header-logo{ display:flex; justify-content:center; }
+  .header-logo{ display:flex; justify-content:flex-start; width:100%; padding:0.5in 0 8px 0.5in; box-sizing:border-box; }
   .header-logo img{ max-height:56px; max-width:220px; object-fit:contain; }
   .header-main{
     width:100%;
     max-width:1000px;
+    padding:0 24px;
+    box-sizing:border-box;
     display:flex;
     align-items:center;
     justify-content:space-between;
@@ -67,6 +69,10 @@
   .header-actions{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 
   main{ max-width:1000px; margin:20px auto; padding:0 20px 60px; }
+
+  .tabs{ display:flex; gap:8px; margin-bottom:16px; }
+  .tab-btn{ background:var(--card); }
+  .tab-btn.active{ background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600; }
 
   .panel{
     background:var(--card);
@@ -224,6 +230,13 @@
 
 <main class="no-print">
 
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnPackage">Package Builder</button>
+    <button class="tab-btn" id="tabBtnHistory">History</button>
+  </div>
+
+  <div id="tabPackage">
+
   <div class="panel" id="catalogPanel" style="display:none;">
     <div class="panel-header" id="catalogPanelHeader">
       <h2>Product Catalog</h2>
@@ -269,6 +282,22 @@
     </div>
   </div>
 
+  </div>
+
+  <div id="tabHistory" style="display:none;">
+    <div class="panel">
+      <div class="panel-header" style="cursor:default;">
+        <h2>Packing List History</h2>
+      </div>
+      <div class="csv-hint" style="margin-bottom:10px;">Every time you click "Complete &amp; Print Labels," the packing list is saved here. Use "Reprint / Edit" to load one back into the builder — add, remove, or fix quantities, then print again.</div>
+      <div id="historyListWrap"></div>
+      <div class="actions-bar">
+        <span class="spacer"></span>
+        <button id="clearHistoryBtn" class="danger">Clear all history</button>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <div id="printArea"></div>
@@ -280,7 +309,9 @@
 
   /* ---------- State ---------- */
   var LS_CATALOG = "boxlabel_catalog_v1";
+  var LS_HISTORY = "boxlabel_history_v1";
   var catalog = JSON.parse(localStorage.getItem(LS_CATALOG) || "[]");
+  var history = JSON.parse(localStorage.getItem(LS_HISTORY) || "[]"); // [{id, createdAt, boxes}], newest first
   var boxes = []; // {id, items:[{sku,barcode,name,qty}]}
   var boxCounter = 0;
   var MAX_ITEMS_PER_LABEL_PAGE = 8;
@@ -293,11 +324,20 @@
   // company logo without any manual setup. The logo is intentionally not
   // user-editable in the UI - swap the repo's logo.* file to change it.
   var CATALOG_URL = "catalog.csv";
-  var LOGO_CANDIDATES = ["logo.png", "logo.jpg", "logo.jpeg", "logo.svg"];
+  // GitHub Pages serves files from a case-sensitive filesystem, so
+  // "Logo.png" and "logo.png" are different URLs - check common casings.
+  var LOGO_CANDIDATES = [
+    "logo.png", "Logo.png", "logo.PNG", "LOGO.png",
+    "logo.jpg", "Logo.jpg", "logo.jpeg", "Logo.jpeg",
+    "logo.svg", "Logo.svg"
+  ];
   var catalogSource = "local"; // "repo" | "local"
   var repoLogoPath = null;
 
   function saveCatalog(){ localStorage.setItem(LS_CATALOG, JSON.stringify(catalog)); }
+  function saveHistory(){ localStorage.setItem(LS_HISTORY, JSON.stringify(history)); }
+  function boxTotalQty(box){ return box.items.reduce(function(s, it){ return s + it.qty; }, 0); }
+  function packageTotalQty(boxesArr){ return boxesArr.reduce(function(s, b){ return s + boxTotalQty(b); }, 0); }
 
   function getEffectiveLogoSrc(){
     return repoLogoPath || "";
@@ -361,6 +401,75 @@
     clearTimeout(toast._h);
     toast._h = setTimeout(function(){ t.classList.remove("show"); }, 2200);
   }
+
+  /* ---------- Tabs ---------- */
+  function switchTab(tab){
+    document.getElementById("tabPackage").style.display = tab === "package" ? "" : "none";
+    document.getElementById("tabHistory").style.display = tab === "history" ? "" : "none";
+    document.getElementById("tabBtnPackage").classList.toggle("active", tab === "package");
+    document.getElementById("tabBtnHistory").classList.toggle("active", tab === "history");
+    if(tab === "history") renderHistoryTab();
+  }
+  document.getElementById("tabBtnPackage").addEventListener("click", function(){ switchTab("package"); });
+  document.getElementById("tabBtnHistory").addEventListener("click", function(){ switchTab("history"); });
+
+  /* ---------- History ---------- */
+  function renderHistoryTab(){
+    var wrap = document.getElementById("historyListWrap");
+    if(history.length === 0){
+      wrap.innerHTML = '<div class="empty-hint">No packing lists yet. Completed packages show up here after you click "Complete &amp; Print Labels."</div>';
+      return;
+    }
+    var rows = history.map(function(entry, idx){
+      var dateStr = new Date(entry.createdAt).toLocaleString();
+      var totalQty = packageTotalQty(entry.boxes);
+      return '<tr>' +
+        '<td>'+escapeHtml(dateStr)+'</td>' +
+        '<td>'+entry.boxes.length+'</td>' +
+        '<td>'+totalQty+'</td>' +
+        '<td><button class="small primary" data-idx="'+idx+'" data-action="loadHistory">Reprint / Edit</button> ' +
+            '<button class="small danger" data-idx="'+idx+'" data-action="deleteHistory">Delete</button></td>' +
+      '</tr>';
+    }).join("");
+    wrap.innerHTML = '<table><thead><tr><th>Date completed</th><th># Boxes</th><th>Total qty</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+
+  document.getElementById("historyListWrap").addEventListener("click", function(e){
+    var btn = e.target.closest("[data-action]");
+    if(!btn) return;
+    var idx = parseInt(btn.getAttribute("data-idx"), 10);
+    var action = btn.getAttribute("data-action");
+
+    if(action === "deleteHistory"){
+      if(confirm("Delete this packing list from history? This cannot be undone.")){
+        history.splice(idx, 1);
+        saveHistory();
+        renderHistoryTab();
+      }
+    } else if(action === "loadHistory"){
+      var entry = history[idx];
+      if(!entry) return;
+      if(boxes.length > 0 && !confirm("Loading this packing list will replace your current unsaved boxes. Continue?")) return;
+      boxes = JSON.parse(JSON.stringify(entry.boxes)).map(function(b){
+        boxCounter++;
+        b.id = boxCounter;
+        return b;
+      });
+      boxSelections = {};
+      renderBoxes();
+      switchTab("package");
+      toast("Loaded packing list from " + new Date(entry.createdAt).toLocaleString() + " — edit and print again to save a new copy");
+    }
+  });
+
+  document.getElementById("clearHistoryBtn").addEventListener("click", function(){
+    if(history.length === 0) return;
+    if(confirm("Clear all packing list history? This cannot be undone.")){
+      history = [];
+      saveHistory();
+      renderHistoryTab();
+    }
+  });
 
   /* ---------- Catalog panel toggle ---------- */
   document.getElementById("toggleCatalogBtn").addEventListener("click", function(){
@@ -799,6 +908,16 @@
     if(boxes.length === 0){ toast("Add at least one box before printing"); return; }
     var hasItems = boxes.some(function(b){ return b.items.length > 0; });
     if(!hasItems){ toast("Add products to your boxes before printing"); return; }
+
+    // Every completed print run is saved to History so it can be reprinted
+    // or corrected later without rebuilding it from scratch.
+    history.unshift({
+      id: Date.now(),
+      createdAt: new Date().toISOString(),
+      boxes: JSON.parse(JSON.stringify(boxes))
+    });
+    saveHistory();
+
     var jobs = buildPrintArea();
     doPrintWhenReady(jobs, 10);
   });
