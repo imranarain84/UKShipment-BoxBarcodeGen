@@ -921,7 +921,9 @@
               '<div class="isku">SKU: '+escapeHtml(it.sku)+'</div>' +
               '<div class="iqty">Qty: '+it.qty+'</div></div>';
             itemsWrap.appendChild(row);
-            barcodeJobs.push({ id: svgId, value: it.barcode || it.sku });
+            // Print barcode always encodes the SKU (not the UPC/EAN),
+            // so scanning the label looks the item up by SKU.
+            barcodeJobs.push({ id: svgId, value: it.sku });
           });
           label.appendChild(itemsWrap);
 
