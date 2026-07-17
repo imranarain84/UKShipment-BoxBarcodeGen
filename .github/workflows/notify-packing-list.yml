@@ -21,7 +21,7 @@ jobs:
           node -e '
             var p = JSON.parse(process.env.PAYLOAD);
             var lines = [];
-            lines.push("A packing list was just completed and printed.");
+            lines.push("A shipment of Back Market phone cases for the UK is ready for shipment and the packing slip(s) have been created. Please send shipping labels and commercial invoices for the following:");
             lines.push("");
             lines.push("Completed at: " + p.completedAt);
             lines.push("Total boxes: " + p.boxCount);
@@ -48,3 +48,4 @@ jobs:
           to: ${{ secrets.NOTIFY_EMAILS }}
           subject: "UK Phone Case Shipment - FedEx Labels & Commercial Invoice Needed"
           body: file://email_body.txt
+ 
