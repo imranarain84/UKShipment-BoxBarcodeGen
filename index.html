@@ -951,8 +951,13 @@
   // instead of silently vanishing.
   function sendPackageNotification(boxesArr){
     if(!RELAY_URL || RELAY_URL.indexOf("PASTE_YOUR") === 0) return; // not configured yet
+    var now = new Date();
+    // Simple, readable timestamp: date and time (hour:minute, am/pm, no
+    // seconds) separated by a single space, e.g. "7/17/2026 2:05 PM".
+    var completedAtStr = now.toLocaleDateString() + " " +
+      now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     var payload = {
-      completedAt: new Date().toISOString(),
+      completedAt: completedAtStr,
       boxCount: boxesArr.length,
       boxes: boxesArr.map(function(b, idx){
         var d = b.dims || {};
