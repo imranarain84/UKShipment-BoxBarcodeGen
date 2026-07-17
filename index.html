@@ -332,8 +332,20 @@
     "logo.jpg", "Logo.jpg", "logo.jpeg", "Logo.jpeg",
     "logo.svg", "Logo.svg"
   ];
+  // The on-screen header sits on a dark background, so its logo file can
+  // be a white/light version. The printed label is on plain white paper,
+  // so it needs a separate, dark/colored logo file - otherwise a white
+  // logo is invisible on the label. Add a "logo-print.*" file to the repo
+  // to use a different logo just for labels; if none is found, the label
+  // falls back to the same logo used on-screen.
+  var LOGO_PRINT_CANDIDATES = [
+    "logo-print.png", "Logo-print.png", "logo-print.PNG", "LOGO-PRINT.png",
+    "logo-print.jpg", "Logo-print.jpg", "logo-print.jpeg", "Logo-print.jpeg",
+    "logo-print.svg", "Logo-print.svg"
+  ];
   var catalogSource = "local"; // "repo" | "local"
   var repoLogoPath = null;
+  var repoLogoPrintPath = null;
 
   // Sends a summary email (box count, dimensions, weights, SKUs/quantities)
   // through a small Cloudflare Worker relay (see cloudflare-worker.js and
@@ -361,7 +373,9 @@
   function packageTotalQty(boxesArr){ return boxesArr.reduce(function(s, b){ return s + boxTotalQty(b); }, 0); }
 
   function getEffectiveLogoSrc(){
-    return repoLogoPath || "";
+    // Prefer the dedicated print logo (if a logo-print.* file exists in
+    // the repo); fall back to the same logo used on-screen otherwise.
+    return repoLogoPrintPath || repoLogoPath || "";
   }
 
   function renderSourceStatus(){
@@ -409,6 +423,19 @@
       var candidate = LOGO_CANDIDATES[i++];
       return fetch(candidate, { cache: "no-store" }).then(function(res){
         if(res.ok){ repoLogoPath = candidate; return; }
+        return tryNext();
+      }).catch(function(){ return tryNext(); });
+    }
+    return tryNext();
+  }
+
+  function loadRepoLogoPrint(){
+    var i = 0;
+    function tryNext(){
+      if(i >= LOGO_PRINT_CANDIDATES.length){ repoLogoPrintPath = null; return Promise.resolve(); }
+      var candidate = LOGO_PRINT_CANDIDATES[i++];
+      return fetch(candidate, { cache: "no-store" }).then(function(res){
+        if(res.ok){ repoLogoPrintPath = candidate; return; }
         return tryNext();
       }).catch(function(){ return tryNext(); });
     }
@@ -1024,6 +1051,7 @@
     renderHeaderLogo();
     renderSourceStatus();
   });
+  loadRepoLogoPrint();
 })();
 </script>
 </body>

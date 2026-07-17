@@ -14,16 +14,29 @@ DigitalOcean needed — GitHub Pages hosts static files for free.
   format and just drop the new file in to replace this one.
 - `logo.png` (or `logo.jpg` / `.jpeg` / `.svg`, common casings like `Logo.png`
   also work) — add your company logo here and it appears left-aligned,
-  0.5in from the top and left edge of the page, plus on every printed
-  label. This is hardcoded on purpose: there's no button in the app to
-  change or remove it, so the only way to update the logo is to replace
-  this file in the repo.
+  0.5in from the top and left edge of the page. This is hardcoded on
+  purpose: there's no button in the app to change or remove it, so the
+  only way to update the logo is to replace this file in the repo.
+- `logo-print.png` (same extension/casing options as above) — optional.
+  The on-screen header sits on a dark background, so `logo.png` can be a
+  white/light version. The printed 4"×6" label is on plain white paper, so
+  a white logo would be invisible there. Add a `logo-print.*` file with a
+  dark/colored version of your logo and it's used on printed labels
+  instead; if this file isn't present, labels just fall back to using
+  `logo.png` like before.
 - `favicon.png` (or `favicon.ico`) — add this and it becomes the browser
   tab icon, replacing the default gray icon. Just save your icon file with
   exactly this name at the repo root, next to `index.html`.
-- `Code.gs` — not part of the website itself. This is pasted into a
-  separate Google Apps Script project to send the box-count/dimensions
-  notification email described below. See "Email notifications" for setup.
+- `.github/workflows/notify-packing-list.yml` — a GitHub Actions workflow
+  that sends the notification email described below via Gmail SMTP. This
+  DOES need to be uploaded to the repo, at that exact path. See "Email
+  notifications" for setup.
+- `cloudflare-worker.js` — not part of the GitHub repo. This is pasted into
+  a separate, free Cloudflare Worker that relays the notification trigger
+  without exposing a real GitHub token in the public page. See "Email
+  notifications" for setup.
+- `Code.gs` — deprecated, no longer used (see the note at the top of the
+  file). Kept only for reference; do not upload this one to the repo.
 
 The page automatically fetches `catalog.csv` and looks for a `logo.*` file
 next to it on every load — that's what makes the hosted version "one shared
@@ -104,50 +117,86 @@ notification email below.
 ## Email notifications
 
 Every time "Complete & Print Labels" is clicked, a summary email (box
-count, dimensions, and weight for each box) is sent automatically to your
-team. This is powered by a small Google Apps Script tied to your own Gmail
-account — GitHub Pages can only host static files, it can't send email on
-its own, so this one extra piece is what makes the "automatic email"
-actually work.
+count, dimensions, weight, and the SKUs/quantities in each box) is sent
+automatically. The path is: page → Cloudflare Worker relay → GitHub Actions
+workflow → Gmail SMTP. GitHub Pages can only host static files and can't
+send email or hold secrets on its own, so these two extra pieces are what
+make the "automatic email" work without exposing anything sensitive in the
+public page.
 
-**Setup (~5 minutes, one time):**
+(Two earlier approaches were tried and abandoned here: Google Apps Script
+— see the note at the top of `Code.gs` — and a real GitHub token embedded
+directly in `index.html`, which GitHub's own secret scanning kept
+auto-revoking within minutes of being detected in the public repo, no
+matter how narrowly it was scoped. The Worker relay below solves that by
+keeping the real GitHub token private and server-side.)
 
-1. Go to [script.google.com](https://script.google.com) → New project.
-2. Delete the placeholder code and paste in the contents of `Code.gs`
-   (included in this folder — this file does NOT go in the GitHub repo,
-   it's pasted into Apps Script instead).
-3. Click the gear icon (Project Settings) → Script Properties → add two:
-   - `NOTIFY_TOKEN` — make up any password-like string.
-   - `NOTIFY_EMAILS` — your 3 recipient addresses, comma-separated, e.g.
+**Setup (~15 minutes, one time):**
+
+1. **Generate a Gmail App Password** for the sending account (Google
+   Account → Security → 2-Step Verification → App passwords). This is the
+   same kind of credential already used for other GitHub → Gmail
+   automations on this account.
+2. **Add repo secrets.** In the GitHub repo: Settings → Secrets and
+   variables → Actions → New repository secret. Add three:
+   - `GMAIL_USERNAME` — the full Gmail address sending the notification.
+   - `GMAIL_APP_PASSWORD` — the app password from step 1.
+   - `NOTIFY_EMAILS` — the recipient addresses, comma-separated, e.g.
      `a@company.com,b@company.com,c@company.com`
-4. Click **Deploy → New deployment**, type **Web app**, set "Execute as"
-   to **Me** and "Who has access" to **Anyone**, then Deploy. Authorize it
-   when prompted (it's your own script acting on your own Gmail — this is
-   a one-time consent, not a recurring login).
-5. Copy the **Web app URL** it gives you.
-6. Open `index.html`, find these two lines near the top of the script, and
+3. **Upload the workflow file.** Make sure `.github/workflows/notify-packing-list.yml`
+   (included in this folder) is in the repo at that exact path. Using
+   GitHub's web UI: "Add file" → "Create new file", type the full path
+   `.github/workflows/notify-packing-list.yml` as the filename (GitHub
+   creates the folders automatically), paste in the contents, and commit.
+4. **Create a GitHub token** at
+   [github.com/settings/tokens](https://github.com/settings/tokens) (classic,
+   `repo` scope) or [github.com/settings/tokens?type=beta](https://github.com/settings/tokens?type=beta)
+   (fine-grained, scoped to just this repo, `Contents: Read and write`).
+   Copy it — but do NOT put it in `index.html` or anything pushed to
+   GitHub. It only ever goes into the Cloudflare Worker in the next step.
+5. **Set up the Cloudflare Worker relay:**
+   - Go to [dash.cloudflare.com](https://dash.cloudflare.com) → sign up free
+     if needed.
+   - Workers & Pages → Create → Create Worker. Give it any name (e.g.
+     `packing-list-relay`) and deploy the default template.
+   - Click "Edit code," delete everything, paste in the contents of
+     `cloudflare-worker.js` (included in this folder), and Deploy.
+   - Back on the Worker's page: Settings → Variables and Secrets → add two
+     **secrets** (not plain variables):
+     - `GH_TOKEN` = the GitHub token from step 4.
+     - `RELAY_TOKEN` = any password-like string you make up.
+   - Note the Worker's URL shown at the top of its dashboard page (looks
+     like `https://packing-list-relay.YOUR-SUBDOMAIN.workers.dev`).
+6. Open `index.html`, find these lines near the top of the script, and
    fill them in:
    ```
-   var NOTIFY_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
-   var NOTIFY_TOKEN = "PASTE_YOUR_SHARED_TOKEN_HERE";
+   var RELAY_URL = "PASTE_YOUR_CLOUDFLARE_WORKER_URL_HERE";
+   var RELAY_TOKEN = "PASTE_YOUR_RELAY_TOKEN_HERE";
    ```
-   Replace with the URL from step 5 and the token from step 3, then push
-   `index.html` to GitHub like any other update.
+   Use the Worker URL from step 5 and the same `RELAY_TOKEN` string you set
+   there, then push `index.html` to GitHub like any other update.
 
-**Why the recipient list isn't in a repo file:** `index.html` is fully
-public — anyone can view its source on GitHub Pages. Keeping the 3 email
-addresses in the Apps Script's Script Properties (instead of in the public
-page) means that URL can't be used to redirect the notification to some
-other, attacker-chosen address; at worst, someone who found the URL could
-trigger a junk email to your own 3 recipients, not send mail to a stranger.
-The token adds a basic check against random visitors triggering sends at
-all. It's not perfect security — nothing embedded in a public static page
-truly is — but it's the sensible level of caution for what this is.
+**Why the recipient list and GitHub token aren't in a repo file:**
+`index.html` is fully public — anyone can view its source on GitHub Pages.
+The 3 email addresses and Gmail credentials live in GitHub repo Secrets;
+the real GitHub token lives only as a Cloudflare Worker secret. Neither is
+ever exposed in the page source.
 
-Because of how Apps Script responds to requests from a different domain,
-the page can't actually confirm the email was received — it just fires the
-request and moves on. Test it once after setup by completing a packing
-list and checking that the email arrives.
+**About `RELAY_TOKEN` in `index.html`:** this one value IS visible in the
+public page source, since a static page needs something to prove to the
+Worker it's a legitimate request. It's just a shared password the Worker
+checks against, not a real credential any service would recognize —
+GitHub's secret scanning has no reason to flag or revoke it. Worst case if
+someone found it: they could spam the notification workflow by calling the
+Worker repeatedly. They could not reach GitHub, Gmail, or anything else
+directly.
+
+If the relay fails (bad `RELAY_TOKEN`, Worker misconfigured, GitHub
+dispatch itself failing, etc.) a toast message will say so right on the
+page instead of failing silently. Test this once after setup by completing
+a packing list and checking that the email arrives — also worth checking
+the repo's **Actions** tab, which shows every time the workflow ran and
+whether it succeeded.
 
 ## Appearance
 
