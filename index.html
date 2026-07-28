@@ -197,12 +197,13 @@
     background:#000; color:#fff; font-size:14pt; font-weight:900;
     padding:0.12in 0; border:none;
   }
-  .label-items{ flex:1; display:flex; flex-direction:column; gap:0.06in; overflow:hidden; }
-  .item-row{ display:flex; align-items:center; gap:0.12in; border-bottom:1px dashed #bbb; padding-bottom:0.05in; }
-  .item-row .barcode-slot svg{ display:block; }
-  .item-row .item-info{ font-size:9pt; line-height:1.35; flex:1; }
-  .item-row .item-info .isku{ font-weight:700; font-size:10.5pt; color:#000; }
-  .item-row .item-info .iqty{ font-weight:700; }
+  .label-items{ flex:1; display:flex; flex-direction:column; gap:0.08in; overflow:hidden; }
+  .item-row{ display:flex; flex-direction:column; gap:0.03in; border-bottom:1px dashed #bbb; padding-bottom:0.08in; }
+  .item-row .barcode-slot{ width:100%; }
+  .item-row .barcode-slot svg{ display:block; width:100%; height:auto; }
+  .item-row .item-info{ line-height:1.3; }
+  .item-row .item-info .isku{ font-weight:700; font-size:11pt; color:#000; }
+  .item-row .item-info .iqty{ font-weight:700; font-size:11pt; color:#000; }
   .label-footer{ font-size:7pt; color:#555; text-align:center; margin-top:0.08in; border-top:1px solid #ccc; padding-top:0.05in; }
 
   @media print{
@@ -946,11 +947,28 @@
         JsBarcode("#"+job.id, job.value, {
           format: "CODE128",
           displayValue: true,
-          fontSize: 10,
-          height: 34,
-          width: 1.4,
+          fontSize: 11,
+          height: 40,
+          width: 1.6,
           margin: 2
         });
+        // Now that the barcode has the full label width to itself (no
+        // longer sharing a row with the SKU/qty text), make the SVG
+        // scale to fill that width instead of using JsBarcode's fixed
+        // pixel size - this is what prevents long SKUs from either
+        // getting clipped off the right edge or rendering too dense to
+        // scan. The rendered width/height become the viewBox, so the
+        // element stretches to fit while keeping its proportions.
+        var svgEl = document.getElementById(job.id);
+        if(svgEl){
+          var w = svgEl.getAttribute("width");
+          var h = svgEl.getAttribute("height");
+          if(w && h){
+            svgEl.setAttribute("viewBox", "0 0 " + w + " " + h);
+            svgEl.removeAttribute("width");
+            svgEl.removeAttribute("height");
+          }
+        }
       }catch(err){
         console.error("Barcode render failed for", job.value, err);
       }
